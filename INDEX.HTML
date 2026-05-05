@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FD Normalizer — ISA</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11; --surface: #16181c; --border: #2a2d34; --border-hover: #4a4f5c;
+    --accent: #00c896; --accent-dim: rgba(0,200,150,0.12); --accent-glow: rgba(0,200,150,0.25);
+    --text: #e8eaf0; --muted: #6b7280; --danger: #ff5f57; --warning: #f5a623;
+    --mono: 'DM Mono', monospace; --sans: 'Syne', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--sans);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 48px 24px 100px; position: relative; overflow-x: hidden;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(0,200,150,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,200,150,0.04) 1px, transparent 1px);
+    background-size: 48px 48px; pointer-events: none; z-index: 0;
+  }
+  body::after {
+    content: ''; position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0,200,150,0.08) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+  .container { width: 100%; max-width: 720px; position: relative; z-index: 1; }
+
+  /* HEADER */
+  header { display:flex; align-items:center; gap:12px; margin-bottom:44px; animation:fadeDown .5s ease both; }
+  .logo-mark { width:36px; height:36px; border:1.5px solid var(--accent); border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:13px; color:var(--accent); }
+  .logo-text { font-size:15px; font-weight:600; letter-spacing:.5px; }
+  .logo-text span { color:var(--accent); }
+  .badge { margin-left:auto; font-family:var(--mono); font-size:10px; color:var(--muted); border:1px solid var(--border); padding:3px 8px; border-radius:4px; letter-spacing:1px; text-transform:uppercase; }
+
+  /* STEPS */
+  .steps { display:flex; align-items:center; margin-bottom:40px; animation:fadeDown .5s .05s ease both; }
+  .step { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; color:var(--muted); transition:.3s; }
+  .step-num { width:24px; height:24px; border-radius:50%; border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:10px; transition:.3s; }
+  .step.active .step-num { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+  .step.active { color:var(--text); }
+  .step.done .step-num { border-color:var(--accent); background:var(--accent); color:#0a1a14; }
+  .step-line { width:40px; height:1px; background:var(--border); margin:0 4px; flex-shrink:0; transition:.5s; }
+  .step-line.done { background:var(--accent); }
+
+  /* HERO */
+  .hero { margin-bottom:32px; animation:fadeDown .5s .1s ease both; }
+  .hero h1 { font-size:clamp(26px,5vw,38px); font-weight:700; line-height:1.1; letter-spacing:-1px; margin-bottom:10px; }
+  .hero h1 em { font-style:normal; color:var(--accent); }
+  .hero p { font-family:var(--mono); font-size:13px; color:var(--muted); line-height:1.6; }
+
+  /* API KEY */
+  .api-key-bar { display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:14px; animation:fadeUp .5s .15s ease both; }
+  .api-key-bar label { font-family:var(--mono); font-size:11px; color:var(--muted); white-space:nowrap; }
+  .api-key-bar input { flex:1; background:transparent; border:none; color:var(--text); font-family:var(--mono); font-size:12px; outline:none; min-width:0; }
+  .api-key-bar input::placeholder { color:var(--muted); }
+  .api-status { font-family:var(--mono); font-size:10px; padding:3px 8px; border-radius:4px; white-space:nowrap; }
+  .api-status.ok { background:rgba(0,200,150,.12); color:var(--accent); }
+  .api-status.missing { background:rgba(255,95,87,.1); color:var(--danger); }
+
+  /* UPLOAD ZONE */
+  .upload-zone { border:1.5px dashed var(--border); border-radius:16px; padding:48px 40px; text-align:center; cursor:pointer; transition:border-color .2s,box-shadow .2s; position:relative; overflow:hidden; animation:fadeUp .5s .2s ease both; background:var(--surface); }
+  .upload-zone::before { content:''; position:absolute; inset:0; background:var(--accent-dim); opacity:0; transition:opacity .2s; }
+  .upload-zone:hover, .upload-zone.drag-over { border-color:var(--accent); box-shadow:0 0 0 4px var(--accent-glow); }
+  .upload-zone:hover::before, .upload-zone.drag-over::before { opacity:1; }
+  .upload-zone.drag-over { border-style:solid; }
+  .upload-icon { width:52px; height:52px; margin:0 auto 18px; position:relative; z-index:1; }
+  .upload-icon svg { width:100%; height:100%; }
+  .upload-zone h2 { font-size:17px; font-weight:600; margin-bottom:6px; position:relative; z-index:1; }
+  .upload-zone p { font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:20px; position:relative; z-index:1; }
+  .btn-upload { display:inline-flex; align-items:center; gap:8px; background:var(--accent); color:#0a1a14; font-family:var(--sans); font-weight:600; font-size:14px; border:none; border-radius:8px; padding:10px 20px; cursor:pointer; transition:opacity .15s,transform .15s; position:relative; z-index:1; }
+  .btn-upload:hover { opacity:.88; } .btn-upload:active { transform:scale(.97); }
+  #file-input { display:none; }
+  .formats { display:flex; justify-content:center; gap:8px; margin-top:18px; flex-wrap:wrap; position:relative; z-index:1; }
+  .fmt-tag { font-family:var(--mono); font-size:10px; color:var(--muted); border:1px solid var(--border); padding:3px 8px; border-radius:4px; }
+
+  /* FILE LIST */
+  .file-list { margin-top:16px; display:flex; flex-direction:column; gap:10px; }
+  .file-item { display:flex; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 16px; transition:border-color .2s; }
+  .file-item:hover { border-color:var(--border-hover); }
+  .file-icon { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-family:var(--mono); font-size:9px; font-weight:500; flex-shrink:0; }
+  .file-icon.pdf { background:rgba(255,95,87,.15); color:var(--danger); border:1px solid rgba(255,95,87,.2); }
+  .file-icon.img { background:rgba(245,166,35,.15); color:var(--warning); border:1px solid rgba(245,166,35,.2); }
+  .file-icon.other { background:rgba(107,114,128,.15); color:var(--muted); border:1px solid var(--border); }
+  .file-info { flex:1; min-width:0; }
+  .file-name { font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:3px; }
+  .file-meta { font-family:var(--mono); font-size:11px; color:var(--muted); }
+  .file-status { display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; color:var(--accent); }
+  .status-dot { width:6px; height:6px; border-radius:50%; background:var(--accent); animation:pulse 1.5s ease infinite; }
+  .remove-btn { background:none; border:none; cursor:pointer; color:var(--muted); padding:4px; border-radius:4px; display:flex; transition:color .15s; flex-shrink:0; }
+  .remove-btn:hover { color:var(--danger); }
+
+  /* BUTTONS */
+  .cta-bar { margin-top:20px; display:flex; align-items:center; gap:12px; }
+  .btn-primary { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; background:var(--accent); color:#0a1a14; font-family:var(--sans); font-weight:700; font-size:15px; border:none; border-radius:10px; padding:14px 24px; cursor:pointer; transition:opacity .15s,transform .15s; }
+  .btn-primary:disabled { opacity:.3; cursor:not-allowed; }
+  .btn-primary:not(:disabled):hover { opacity:.88; } .btn-primary:not(:disabled):active { transform:scale(.98); }
+  .btn-secondary { display:flex; align-items:center; gap:6px; background:none; color:var(--muted); font-family:var(--sans); font-size:13px; border:1px solid var(--border); border-radius:10px; padding:14px 18px; cursor:pointer; transition:color .15s,border-color .15s; white-space:nowrap; }
+  .btn-secondary:hover { color:var(--text); border-color:var(--border-hover); }
+
+  /* INFO CARDS */
+  .info-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:32px; animation:fadeUp .5s .35s ease both; }
+  .info-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  .info-card .num { font-family:var(--mono); font-size:24px; font-weight:500; color:var(--accent); margin-bottom:4px; }
+  .info-card .lbl { font-size:12px; color:var(--muted); line-height:1.4; }
+
+  /* RESULT PANEL */
+  #result-panel { display:none; }
+  #result-panel.show { display:block; animation:fadeUp .4s ease both; }
+  .result-header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:24px; }
+  .result-title { font-size:22px; font-weight:700; letter-spacing:-.5px; margin-bottom:6px; }
+  .result-title em { font-style:normal; color:var(--accent); }
+  .result-sub { font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .confidence-badge { font-family:var(--mono); font-size:11px; padding:6px 12px; border-radius:6px; white-space:nowrap; flex-shrink:0; }
+  .confidence-badge.high { background:rgba(0,200,150,.15); color:var(--accent); border:1px solid rgba(0,200,150,.3); }
+  .confidence-badge.medium { background:rgba(245,166,35,.15); color:var(--warning); border:1px solid rgba(245,166,35,.3); }
+  .confidence-badge.low { background:rgba(255,95,87,.15); color:var(--danger); border:1px solid rgba(255,95,87,.3); }
+
+  .field-group { margin-bottom:24px; }
+  .field-group-title { font-family:var(--mono); font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); margin-bottom:10px; padding-bottom:8px; border-bottom:1px solid var(--border); }
+  .fields-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .fields-grid.full { grid-template-columns:1fr; }
+  .field-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:13px 15px; transition:border-color .2s; position:relative; }
+  .field-card:hover { border-color:var(--border-hover); }
+  .field-card.uncertain { border-color:rgba(245,166,35,.4); }
+  .field-card.uncertain::before { content:''; position:absolute; top:0; left:0; width:3px; height:100%; background:var(--warning); border-radius:10px 0 0 10px; }
+  .field-label { font-family:var(--mono); font-size:10px; color:var(--muted); margin-bottom:5px; display:flex; align-items:center; gap:6px; }
+  .uncertain-tag { font-size:9px; color:var(--warning); }
+  .field-input { width:100%; background:transparent; border:none; color:var(--text); font-family:var(--mono); font-size:13px; outline:none; padding:0; }
+  .field-input:focus { color:var(--accent); }
+
+  .action-bar { display:flex; gap:12px; margin-top:28px; padding-top:20px; border-top:1px solid var(--border); }
+  .btn-export { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; background:var(--accent); color:#0a1a14; font-family:var(--sans); font-weight:700; font-size:14px; border:none; border-radius:10px; padding:13px 20px; cursor:pointer; transition:opacity .15s,transform .15s; }
+  .btn-export:hover { opacity:.88; } .btn-export:active { transform:scale(.98); }
+  .btn-action { display:flex; align-items:center; gap:6px; background:none; color:var(--muted); font-family:var(--sans); font-size:13px; border:1px solid var(--border); border-radius:10px; padding:13px 16px; cursor:pointer; transition:color .15s,border-color .15s; white-space:nowrap; }
+  .btn-action:hover { color:var(--text); border-color:var(--border-hover); }
+
+  /* PROCESSING */
+  .processing { display:none; position:fixed; inset:0; background:rgba(14,15,17,.94); z-index:200; align-items:center; justify-content:center; flex-direction:column; gap:16px; }
+  .processing.show { display:flex; }
+  .spinner { width:44px; height:44px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .8s linear infinite; }
+  .proc-steps { display:flex; flex-direction:column; gap:6px; align-items:center; margin-top:4px; }
+  .proc-step { font-family:var(--mono); font-size:12px; color:var(--muted); opacity:0; transition:opacity .4s; }
+  .proc-step.active { color:var(--accent); opacity:1; }
+  .proc-step.done { opacity:.35; }
+
+  /* TOAST */
+  .toast { position:fixed; bottom:32px; left:50%; transform:translateX(-50%) translateY(80px); background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 20px; font-family:var(--mono); font-size:12px; transition:transform .3s ease; z-index:300; white-space:nowrap; }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+  .toast.err { color:var(--danger); }
+  .toast.ok { color:var(--accent); }
+
+  @keyframes fadeDown { from{opacity:0;transform:translateY(-12px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fadeUp   { from{opacity:0;transform:translateY(12px)}  to{opacity:1;transform:translateY(0)} }
+  @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:.3} }
+  @keyframes spin     { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo-mark">FD</div>
+    <div class="logo-text">ISA<span>Normalizer</span></div>
+    <div class="badge">Beta</div>
+  </header>
+
+  <div class="steps" id="steps">
+    <div class="step active" id="step1"><div class="step-num">1</div><span>Upload</span></div>
+    <div class="step-line" id="line1"></div>
+    <div class="step" id="step2"><div class="step-num">2</div><span>Extração</span></div>
+    <div class="step-line" id="line2"></div>
+    <div class="step" id="step3"><div class="step-num">3</div><span>Revisão</span></div>
+  </div>
+
+  <!-- UPLOAD PANEL -->
+  <div id="upload-panel">
+    <div class="hero">
+      <h1>Padronize sua FD<br>para o formato <em>ISA</em></h1>
+      <p>Envie a folha de dados do fornecedor — PDF ou imagem.<br>A IA extrai e converte para o padrão internacional automaticamente.</p>
+    </div>
+
+    <div class="api-key-bar">
+      <label>API KEY</label>
+      <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." oninput="updateApiStatus()">
+      <span class="api-status missing" id="api-status">não configurada</span>
+    </div>
+
+    <div class="upload-zone" id="drop-zone">
+      <div class="upload-icon">
+        <svg viewBox="0 0 56 56" fill="none">
+          <rect width="56" height="56" rx="12" fill="rgba(0,200,150,0.08)"/>
+          <path d="M28 36V22M28 22L22 28M28 22L34 28" stroke="#00c896" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M18 38h20" stroke="#00c896" stroke-width="1.5" stroke-linecap="round" opacity="0.5"/>
+        </svg>
+      </div>
+      <h2>Arraste o arquivo aqui</h2>
+      <p>ou clique para selecionar do seu computador</p>
+      <button class="btn-upload" onclick="document.getElementById('file-input').click()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M3 5l4-4 4 4M1 11h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Selecionar arquivo
+      </button>
+      <div class="formats">
+        <span class="fmt-tag">PDF</span><span class="fmt-tag">PNG</span>
+        <span class="fmt-tag">JPG</span><span class="fmt-tag">TIFF</span>
+      </div>
+      <input type="file" id="file-input" accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif">
+    </div>
+
+    <div class="file-list" id="file-list"></div>
+
+    <div class="cta-bar">
+      <button class="btn-primary" id="btn-process" disabled onclick="startExtraction()">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8h12M8 2l6 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Extrair com IA
+      </button>
+      <button class="btn-secondary" id="btn-clear" onclick="clearAll()" style="display:none">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M1 1l11 11M12 1L1 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Limpar
+      </button>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card"><div class="num">ISA</div><div class="lbl">Padrão internacional de instrumentação</div></div>
+      <div class="info-card"><div class="num">+40</div><div class="lbl">Campos mapeados automaticamente</div></div>
+      <div class="info-card"><div class="num">&lt;30s</div><div class="lbl">Tempo médio de extração</div></div>
+    </div>
+  </div>
+
+  <!-- RESULT PANEL -->
+  <div id="result-panel">
+    <div class="result-header">
+      <div>
+        <div class="result-title">Campos <em>extraídos</em></div>
+        <div class="result-sub" id="result-source">Revise e edite antes de exportar</div>
+      </div>
+      <span class="confidence-badge high" id="confidence-badge">Alta confiança</span>
+    </div>
+    <div id="fields-container"></div>
+    <div class="action-bar">
+      <button class="btn-action" onclick="goBack()">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M8 1L1 6.5 8 12M1 6.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Novo
+      </button>
+      <button class="btn-action" onclick="copyJSON()">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 9V2a1 1 0 011-1h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        JSON
+      </button>
+      <button class="btn-export" onclick="exportISA()">
+        <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 1v9M3 6l4.5 4.5L12 6M1 13h13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Exportar FD ISA
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Processing overlay -->
+<div class="processing" id="processing-overlay">
+  <div class="spinner"></div>
+  <div class="proc-steps">
+    <div class="proc-step" id="ps1">Lendo documento...</div>
+    <div class="proc-step" id="ps2">Identificando campos do instrumento...</div>
+    <div class="proc-step" id="ps3">Mapeando para padrão ISA...</div>
+    <div class="proc-step" id="ps4">Finalizando extração...</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── STATE ──
+let files = [];
+const ALLOWED_EXT = ['pdf','png','jpg','jpeg','tiff','tif'];
+
+const ISA_SCHEMA = [
+  { group: 'Identificação', cols: 2, fields: [
+    { key:'tag',         label:'TAG do instrumento',      warn:false },
+    { key:'service',     label:'Serviço / fluido',         warn:false },
+    { key:'type',        label:'Tipo de instrumento',      warn:false },
+    { key:'manufacturer',label:'Fabricante',               warn:false },
+    { key:'model',       label:'Modelo / referência',      warn:false },
+    { key:'project',     label:'Projeto',                  warn:false },
+  ]},
+  { group: 'Condições de Processo', cols: 2, fields: [
+    { key:'fluid',       label:'Fluido',                   warn:false },
+    { key:'temperature', label:'Temperatura (°C)',          warn:false },
+    { key:'pressure',    label:'Pressão (bar)',             warn:false },
+    { key:'density',     label:'Densidade (kg/m³)',         warn:true  },
+    { key:'flow_min',    label:'Vazão mínima',              warn:true  },
+    { key:'flow_max',    label:'Vazão máxima',              warn:true  },
+  ]},
+  { group: 'Medição e Sinal', cols: 2, fields: [
+    { key:'range_min',    label:'Range mínimo',            warn:false },
+    { key:'range_max',    label:'Range máximo',            warn:false },
+    { key:'unit',         label:'Unidade de engenharia',   warn:false },
+    { key:'accuracy',     label:'Precisão',                warn:true  },
+    { key:'output_signal',label:'Sinal de saída',          warn:false },
+    { key:'supply_voltage',label:'Tensão de alimentação',  warn:false },
+  ]},
+  { group: 'Conexões e Materiais', cols: 2, fields: [
+    { key:'process_conn', label:'Conexão de processo',     warn:false },
+    { key:'flange_rating',label:'Rating do flange',        warn:true  },
+    { key:'body_material',label:'Material do corpo',       warn:false },
+    { key:'diaphragm',    label:'Material do diafragma',   warn:true  },
+    { key:'protection',   label:'Grau de proteção (IP/Ex)',warn:false },
+    { key:'datasheet_rev',label:'Revisão da FD',           warn:false },
+  ]},
+  { group: 'Observações', cols: 1, fields: [
+    { key:'notes', label:'Observações gerais', warn:false },
+  ]},
+];
+
+// ── API STATUS ──
+function updateApiStatus() {
+  const k = document.getElementById('api-key-input').value.trim();
+  const s = document.getElementById('api-status');
+  const ok = k.startsWith('sk-ant-') && k.length > 20;
+  s.textContent = ok ? 'configurada' : 'não configurada';
+  s.className = 'api-status ' + (ok ? 'ok' : 'missing');
+}
+
+// ── FILE HELPERS ──
+function getExt(n) { return n.split('.').pop().toLowerCase(); }
+function getIconClass(f) { return f.type==='application/pdf' ? 'pdf' : f.type.startsWith('image/') ? 'img' : 'other'; }
+function getIconLabel(f) { return getExt(f.name).toUpperCase().slice(0,4); }
+function fmtSize(b) { return b<1024 ? b+'B' : b<1048576 ? (b/1024).toFixed(1)+'KB' : (b/1048576).toFixed(1)+'MB'; }
+
+function addFiles(list) {
+  for (const f of list) {
+    if (!ALLOWED_EXT.includes(getExt(f.name))) { toast('Formato não suportado: .'+getExt(f.name),'err'); continue; }
+    if (files.some(x=>x.name===f.name&&x.size===f.size)) continue;
+    files = [f]; // one file at a time
+  }
+  renderList();
+}
+function removeFile() { files=[]; document.getElementById('file-input').value=''; renderList(); }
+function clearAll() { removeFile(); }
+
+function renderList() {
+  const el = document.getElementById('file-list');
+  el.innerHTML = '';
+  files.forEach(f => {
+    const d = document.createElement('div');
+    d.className = 'file-item';
+    d.innerHTML = `
+      <div class="file-icon ${getIconClass(f)}">${getIconLabel(f)}</div>
+      <div class="file-info"><div class="file-name" title="${f.name}">${f.name}</div><div class="file-meta">${fmtSize(f.size)}</div></div>
+      <div class="file-status"><div class="status-dot"></div>pronto</div>
+      <button class="remove-btn" onclick="removeFile()" title="Remover">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </button>`;
+    el.appendChild(d);
+  });
+  document.getElementById('btn-process').disabled = files.length===0;
+  document.getElementById('btn-clear').style.display = files.length>0 ? 'flex' : 'none';
+}
+
+// ── BASE64 ──
+function toBase64(file) {
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload = ()=>res(r.result.split(',')[1]);
+    r.onerror = ()=>rej(new Error('Erro ao ler arquivo'));
+    r.readAsDataURL(file);
+  });
+}
+
+// ── PROC STEPS ANIMATION ──
+let stepTimer = null;
+const STEP_IDS = ['ps1','ps2','ps3','ps4'];
+function startProcSteps() {
+  STEP_IDS.forEach(id => document.getElementById(id).className='proc-step');
+  let i = 0;
+  document.getElementById(STEP_IDS[0]).className='proc-step active';
+  stepTimer = setInterval(() => {
+    document.getElementById(STEP_IDS[i]).className='proc-step done';
+    i++;
+    if (i < STEP_IDS.length) document.getElementById(STEP_IDS[i]).className='proc-step active';
+    else clearInterval(stepTimer);
+  }, 2400);
+}
+
+// ── CLAUDE API ──
+async function callClaude(apiKey, file, b64) {
+  const ext = getExt(file.name);
+  const isPDF = ext==='pdf';
+  const mt = isPDF ? 'application/pdf' : ext==='png' ? 'image/png' : 'image/jpeg';
+  const part = isPDF
+    ? { type:'document', source:{ type:'base64', media_type:mt, data:b64 } }
+    : { type:'image',    source:{ type:'base64', media_type:mt, data:b64 } };
+
+  const prompt = `Você é especialista em instrumentação industrial. Analise esta folha de dados de instrumento e extraia os campos abaixo.
+
+Retorne SOMENTE um JSON válido (sem markdown, sem texto extra):
+
+{
+  "tag":"", "service":"", "type":"", "manufacturer":"", "model":"", "project":"",
+  "fluid":"", "temperature":"", "pressure":"", "density":"", "flow_min":"", "flow_max":"",
+  "range_min":"", "range_max":"", "unit":"", "accuracy":"", "output_signal":"", "supply_voltage":"",
+  "process_conn":"", "flange_rating":"", "body_material":"", "diaphragm":"", "protection":"",
+  "datasheet_rev":"", "notes":"",
+  "confidence":"high"
+}
+
+Regras:
+- Use string vazia "" para campos não encontrados
+- confidence: "high" (>70% campos preenchidos), "medium" (40-70%), "low" (<40%)
+- Preserve as unidades originais do documento`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({
+      model:'claude-sonnet-4-20250514',
+      max_tokens:1000,
+      messages:[{ role:'user', content:[part, {type:'text',text:prompt}] }]
+    })
+  });
+
+  if (!res.ok) {
+    const e = await res.json().catch(()=>({}));
+    throw new Error(e.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const text = data.content.map(b=>b.text||'').join('');
+  const clean = text.replace(/```json|```/g,'').trim();
+  return JSON.parse(clean);
+}
+
+// ── EXTRACTION FLOW ──
+async function startExtraction() {
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  if (!apiKey.startsWith('sk-ant-')) { toast('Configure a API Key da Anthropic primeiro','err'); return; }
+  if (!files.length) return;
+
+  const overlay = document.getElementById('processing-overlay');
+  overlay.classList.add('show');
+  startProcSteps();
+
+  try {
+    const f = files[0];
+    const b64 = await toBase64(f);
+    const extracted = await callClaude(apiKey, f, b64);
+    clearInterval(stepTimer);
+    overlay.classList.remove('show');
+    showResult(extracted, f.name);
+  } catch(err) {
+    clearInterval(stepTimer);
+    overlay.classList.remove('show');
+    toast('Erro: ' + err.message, 'err');
+    console.error(err);
+  }
+}
+
+// ── RENDER RESULTS ──
+function showResult(data, filename) {
+  // update steps
+  ['step1','step2'].forEach((id,i) => {
+    const el = document.getElementById(id);
+    el.className='step done';
+    el.querySelector('.step-num').textContent='✓';
+  });
+  document.getElementById('step3').className='step active';
+  document.getElementById('line1').className='step-line done';
+  document.getElementById('line2').className='step-line done';
+
+  // confidence
+  const conf = data.confidence||'medium';
+  const badge = document.getElementById('confidence-badge');
+  const labels = {high:'Alta confiança',medium:'Confiança média',low:'Baixa confiança'};
+  badge.textContent = labels[conf]||'Confiança média';
+  badge.className='confidence-badge '+conf;
+
+  document.getElementById('result-source').textContent = `Fonte: ${filename} — edite os campos se necessário`;
+
+  // render field groups
+  const container = document.getElementById('fields-container');
+  container.innerHTML='';
+  ISA_SCHEMA.forEach(group => {
+    const gEl = document.createElement('div');
+    gEl.className='field-group';
+    const grid = document.createElement('div');
+    grid.className = 'fields-grid' + (group.cols===1 ? ' full' : '');
+    group.fields.forEach(f => {
+      const val = data[f.key]||'';
+      const uncertain = f.warn && val==='';
+      const card = document.createElement('div');
+      card.className='field-card'+(uncertain?' uncertain':'');
+      card.innerHTML=`
+        <div class="field-label">${f.label}${uncertain?'<span class="uncertain-tag">⚠ não encontrado</span>':''}</div>
+        <input class="field-input" data-key="${f.key}" value="${esc(val)}" placeholder="—">`;
+      grid.appendChild(card);
+    });
+    gEl.innerHTML=`<div class="field-group-title">${group.group}</div>`;
+    gEl.appendChild(grid);
+    container.appendChild(gEl);
+  });
+
+  document.getElementById('upload-panel').style.display='none';
+  document.getElementById('result-panel').classList.add('show');
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+// ── ACTIONS ──
+function goBack() {
+  document.getElementById('result-panel').classList.remove('show');
+  document.getElementById('upload-panel').style.display='';
+  ['step1','step2','step3'].forEach((id,i) => {
+    const el=document.getElementById(id);
+    el.className='step'+(i===0?' active':'');
+    el.querySelector('.step-num').textContent=i+1;
+  });
+  document.getElementById('line1').className='step-line';
+  document.getElementById('line2').className='step-line';
+  clearAll();
+}
+
+function getFieldData() {
+  const d={};
+  document.querySelectorAll('.field-input').forEach(i=>d[i.dataset.key]=i.value);
+  return d;
+}
+
+function copyJSON() {
+  navigator.clipboard.writeText(JSON.stringify(getFieldData(),null,2))
+    .then(()=>toast('JSON copiado!','ok'));
+}
+
+function exportISA() {
+  const d = getFieldData();
+  const now = new Date().toLocaleDateString('pt-BR');
+  let rows='';
+  ISA_SCHEMA.forEach(g=>{
+    rows+=`<tr><td colspan="2" style="background:#1a1a2e;color:#00c896;font-weight:700;padding:8px 12px;font-size:11px;letter-spacing:1px;text-transform:uppercase">${g.group}</td></tr>`;
+    g.fields.forEach(f=>{
+      const val=d[f.key]||'—';
+      rows+=`<tr><td style="background:#0f0f1a;color:#6b7280;padding:7px 12px;border-bottom:1px solid #1e1e2e;font-size:11px;width:40%">${f.label}</td><td style="color:#e8eaf0;padding:7px 12px;border-bottom:1px solid #1e1e2e;font-size:12px;font-family:monospace">${val}</td></tr>`;
+    });
+  });
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>FD ISA — ${d.tag||'Instrumento'}</title></head>
+<body style="margin:0;background:#0e0f11;font-family:Arial,sans-serif;padding:32px">
+<div style="max-width:800px;margin:0 auto">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #2a2d34">
+    <div>
+      <div style="font-size:10px;color:#6b7280;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">Folha de Dados de Instrumento</div>
+      <div style="font-size:22px;font-weight:700;color:#e8eaf0">TAG: ${d.tag||'—'}</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px">${d.service||''} ${d.manufacturer?'· '+d.manufacturer:''}</div>
+    </div>
+    <div style="background:#00c896;color:#0a1a14;font-weight:700;font-size:11px;padding:8px 16px;border-radius:6px;letter-spacing:1px">ISA 5.1</div>
+  </div>
+  <table style="width:100%;border-collapse:collapse">${rows}</table>
+  <div style="margin-top:24px;font-size:10px;color:#2a2d34;text-align:right">Gerado por ISANormalizer · ${now}</div>
+</div></body></html>`;
+  const blob=new Blob([html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`FD_ISA_${d.tag||'instrumento'}.html`; a.click();
+  URL.revokeObjectURL(url);
+  toast('FD ISA exportada!','ok');
+}
+
+// ── TOAST ──
+function toast(msg, type='err') {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show '+type;
+  setTimeout(()=>t.className='toast',3500);
+}
+
+// ── DRAG & DROP ──
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+dropZone.addEventListener('dragover', e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave', e=>{if(!dropZone.contains(e.relatedTarget))dropZone.classList.remove('drag-over');});
+dropZone.addEventListener('drop', e=>{e.preventDefault();dropZone.classList.remove('drag-over');addFiles([...e.dataTransfer.files]);});
+dropZone.addEventListener('click', e=>{
+  if(e.target===dropZone||e.target.closest('.upload-icon')||e.target.tagName==='H2'||e.target.tagName==='P') fileInput.click();
+});
+fileInput.addEventListener('change',()=>{if(fileInput.files.length) addFiles([...fileInput.files]);});
+</script>
+</body>
+</html>
